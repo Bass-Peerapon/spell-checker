@@ -19,6 +19,20 @@ const THAI_LETTERS: &str = formatcp!(
 const THAI_DIGITS: &str = "๐๑๒๓๔๕๖๗๘๙";
 const DIGITS: &str = "0123456789";
 
+macro_rules! insert_prefix_str {
+    ($filename:expr) => {
+        if cfg!(feature = "onedir") {
+            concat!("./", $filename)
+        } else {
+            concat!(env!("CARGO_MANIFEST_DIR"), "/data/", $filename)
+        }
+    };
+}
+
+pub fn tnc_freq_path() -> Option<String> {
+    Some(insert_prefix_str!("tnc_freq.txt").to_owned())
+}
+
 fn is_thai_char(c: char) -> bool {
     THAI_LETTERS.contains(c)
 }
@@ -65,7 +79,7 @@ fn get_corpus(filename: &str, comments: bool) -> HashSet<String> {
     lines_set
 }
 fn word_freqs() -> Vec<(String, usize)> {
-    let corpus = get_corpus("../data/tnc_freq.txt", true); // You can use the get_corpus function
+    let corpus = get_corpus(tnc_freq_path().unwrap().as_str(), true); // You can use the get_corpus function
     let mut word_freqs = Vec::new();
 
     for line in corpus {
@@ -262,13 +276,19 @@ impl NorvigSpellChecker {
     }
 
     pub fn spell(&self, word: &str) -> Vec<String> {
-        let candidates: HashSet<String> = self
-            .known(&HashSet::from_iter(vec![word.to_string()]))
-            .into_iter()
-            .chain(self.known(&_edits1(word)))
-            // .chain(self.known(&_edits2(word)))
-            .collect();
+        let mut candidates = self.known(&HashSet::from([word.to_string()]));
 
+        if candidates.is_empty() {
+            candidates = self.known(&HashSet::from_iter(_edits1(word)));
+        }
+
+        if candidates.is_empty() {
+            candidates = self.known(&HashSet::from_iter(_edits2(word)));
+        }
+
+        if candidates.is_empty() {
+            candidates = HashSet::from([word.to_string()]);
+        }
         let mut candidates_vec: Vec<String> = candidates.into_iter().collect();
         candidates_vec.sort_by(|a, b| {
             self.freq(b).cmp(&self.freq(a)).then_with(|| {
