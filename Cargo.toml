@@ -1,0 +1,10 @@
+workspace = { members = ["example"] }
+[package]
+name = "spell-checker"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+const_format = "0.2.33"
