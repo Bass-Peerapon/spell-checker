@@ -4,6 +4,7 @@ use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{self, BufRead};
+use std::path::Path;
 
 const THAI_CONSONANTS: &str = "กขฃคฅฆงจฉชซฌญฎฏฐฑฒณดตถทธนบปผฝพฟภมยรลวศษสหฬอฮ"; // 44 chars
 const THAI_VOWELS: &str = "\u{0e24}\u{0e26}\u{0e30}\u{0e31}\u{0e32}\u{0e33}\u{0e34}\u{0e35}\u{0e36}\u{0e37}\u{0e38}\u{0e39}\u{0e40}\u{0e41}\u{0e42}\u{0e43}\u{0e44}\u{0e45}\u{0e4d}\u{0e47}";
@@ -19,18 +20,17 @@ const THAI_LETTERS: &str = formatcp!(
 const THAI_DIGITS: &str = "๐๑๒๓๔๕๖๗๘๙";
 const DIGITS: &str = "0123456789";
 
-macro_rules! insert_prefix_str {
+macro_rules! insert_prefix {
     ($filename:expr) => {
         if cfg!(feature = "onedir") {
-            concat!("./", $filename)
+            Path::new(concat!("./", $filename))
         } else {
-            concat!(env!("CARGO_MANIFEST_DIR"), "/data/", $filename)
+            Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/data/", $filename))
         }
     };
 }
-
-pub fn tnc_freq_path() -> Option<String> {
-    Some(insert_prefix_str!("tnc_freq.txt").to_owned())
+pub fn tnc_freq_path() -> &'static Path {
+    insert_prefix!("tnc_freq.txt")
 }
 
 fn is_thai_char(c: char) -> bool {
@@ -79,7 +79,7 @@ fn get_corpus(filename: &str, comments: bool) -> HashSet<String> {
     lines_set
 }
 fn word_freqs() -> Vec<(String, usize)> {
-    let corpus = get_corpus(tnc_freq_path().unwrap().as_str(), true); // You can use the get_corpus function
+    let corpus = get_corpus(tnc_freq_path().to_str().unwrap(), true); // You can use the get_corpus function
     let mut word_freqs = Vec::new();
 
     for line in corpus {
