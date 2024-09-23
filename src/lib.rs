@@ -1,9 +1,9 @@
 use const_format::formatcp;
-use std::cmp::Ordering;
+use core::str;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{self, BufRead};
-use std::iter::FromIterator;
+use std::time::Instant;
 
 const THAI_CONSONANTS: &str = "กขฃคฅฆงจฉชซฌญฎฏฐฑฒณดตถทธนบปผฝพฟภมยรลวศษสหฬอฮ"; // 44 chars
 const THAI_VOWELS: &str = "\u{0e24}\u{0e26}\u{0e30}\u{0e31}\u{0e32}\u{0e33}\u{0e34}\u{0e35}\u{0e36}\u{0e37}\u{0e38}\u{0e39}\u{0e40}\u{0e41}\u{0e42}\u{0e43}\u{0e44}\u{0e45}\u{0e4d}\u{0e47}";
@@ -96,44 +96,38 @@ fn word_freqs() -> Vec<(String, usize)> {
 
 fn _edits1(word: &str) -> HashSet<String> {
     let mut edits = HashSet::new();
-    let char_vec: Vec<char> = word.chars().collect(); // เปลี่ยนสตริงให้เป็นอาเรย์ตัวอักษร
-
-    // สร้างรายการการแบ่งคำที่ตัวอักษร (ไม่ใช่ไบต์)
-    let splits: Vec<(Vec<char>, Vec<char>)> = (0..=char_vec.len())
-        .map(|i| (char_vec[..i].to_vec(), char_vec[i..].to_vec()))
-        .collect();
+    let mut splits: Vec<(&str, &str)> = Vec::new();
+    for (i, _) in word.char_indices() {
+        splits.push(word.split_at(i));
+    }
+    splits.push((word, ""));
 
     // Deletes (ลบตัวอักษรหนึ่งตัวออกจากคำ)
     for (l, r) in &splits {
         if !r.is_empty() {
-            let mut candidate = String::with_capacity(l.len() + r.len() - 1);
-            candidate.extend(l);
-            candidate.extend(&r[1..]);
-            edits.insert(candidate);
+            let mut chars = r.chars();
+            chars.next(); // Skip the first char (deletion)
+            edits.insert(format!("{}{}", l, chars.collect::<String>()));
         }
     }
 
     // Transposes (สลับตัวอักษรสองตัว)
     for (l, r) in &splits {
-        if r.len() > 1 {
-            let mut candidate = String::with_capacity(l.len() + r.len());
-            candidate.extend(l);
-            candidate.push(r[1]);
-            candidate.push(r[0]);
-            candidate.extend(&r[2..]);
-            edits.insert(candidate);
+        let c: Vec<char> = r.chars().collect();
+        if c.len() > 1 {
+            let mut r_chars = r.chars().collect::<Vec<char>>();
+            r_chars.swap(0, 1);
+            edits.insert(format!("{}{}", l, r_chars.iter().collect::<String>()));
         }
     }
 
     // Replaces (แทนที่ตัวอักษรหนึ่งตัว)
     for (l, r) in &splits {
-        if !r.is_empty() {
+        if r.chars().next().is_some() {
             for c in THAI_LETTERS.chars() {
-                let mut candidate = String::with_capacity(l.len() + r.len());
-                candidate.extend(l);
-                candidate.push(c);
-                candidate.extend(&r[1..]);
-                edits.insert(candidate);
+                let mut r_chars = r.chars();
+                r_chars.next(); // Skip the first char for replacement
+                edits.insert(format!("{}{}{}", l, c, r_chars.collect::<String>()));
             }
         }
     }
@@ -141,11 +135,7 @@ fn _edits1(word: &str) -> HashSet<String> {
     // Inserts (แทรกตัวอักษรหนึ่งตัว)
     for (l, r) in &splits {
         for c in THAI_LETTERS.chars() {
-            let mut candidate = String::with_capacity(l.len() + r.len() + 1);
-            candidate.extend(l);
-            candidate.push(c);
-            candidate.extend(r);
-            edits.insert(candidate);
+            edits.insert(format!("{}{}{}", l, c, r));
         }
     }
 
@@ -153,11 +143,10 @@ fn _edits1(word: &str) -> HashSet<String> {
 }
 
 fn _edits2(word: &str) -> HashSet<String> {
-    let mut result = HashSet::new();
-    for e1 in _edits1(word) {
-        result.extend(_edits1(&e1));
-    }
-    result
+    _edits1(word)
+        .into_iter()
+        .flat_map(|e1| _edits1(&e1))
+        .collect()
 }
 
 fn _keep(
@@ -276,28 +265,33 @@ impl NorvigSpellChecker {
     }
 
     pub fn spell(&self, word: &str) -> Vec<String> {
+        let start = Instant::now();
         let mut candidates = self.known(&HashSet::from([word.to_string()]));
+        let duration = start.elapsed();
 
-        if candidates.is_empty() {
-            candidates = self.known(&HashSet::from_iter(_edits1(word)));
-        }
+        println!("Time elapsed in known() is: {:?}", duration);
 
+        let start = Instant::now();
         if candidates.is_empty() {
-            candidates = self.known(&HashSet::from_iter(_edits2(word)));
+            candidates = self.known(&_edits1(word));
         }
+        let duration = start.elapsed();
+        println!("Time elapsed in _edits1() is: {:?}", duration);
+
+        let start = Instant::now();
+        if candidates.is_empty() {
+            candidates = self.known(&_edits2(word));
+        }
+        let duration = start.elapsed();
+        println!("Time elapsed in _edits2() is: {:?}", duration);
 
         if candidates.is_empty() {
             candidates = HashSet::from([word.to_string()]);
         }
-        let mut candidates_vec: Vec<String> = candidates.into_iter().collect();
-        candidates_vec.sort_by(|a, b| {
-            self.freq(b).cmp(&self.freq(a)).then_with(|| {
-                self.prob(b)
-                    .partial_cmp(&self.prob(a))
-                    .unwrap_or(Ordering::Equal)
-            })
-        });
 
+        let mut candidates_vec: Vec<String> = candidates.into_iter().collect();
+        // Sort candidates by frequency, highest first
+        candidates_vec.sort_by_key(|w| std::cmp::Reverse(self.freq(w)));
         candidates_vec
     }
 
