@@ -1,7 +1,8 @@
-use spell_checker::NorvigSpellChecker;
+use spell_checker::{load_custom_dict, tnc_freq_path, NorvigSpellChecker};
 
 fn main() {
-    let spell_checker = NorvigSpellChecker::default();
+    let custom_dict = load_custom_dict(tnc_freq_path());
+    let spell_checker = NorvigSpellChecker::new_with_custom_dict(custom_dict);
 
     // Example usage
     let word1 = "เหตการณ";

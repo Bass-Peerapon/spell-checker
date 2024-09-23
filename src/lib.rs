@@ -78,15 +78,15 @@ fn get_corpus(filename: &str, comments: bool) -> HashSet<String> {
 
     lines_set
 }
-fn word_freqs() -> Vec<(String, usize)> {
-    let corpus = get_corpus(tnc_freq_path().to_str().unwrap(), true); // You can use the get_corpus function
-    let mut word_freqs = Vec::new();
+pub fn load_custom_dict(path: &Path) -> HashMap<String, usize> {
+    let corpus = get_corpus(path.to_str().unwrap(), true); // You can use the get_corpus function
+    let mut word_freqs = HashMap::new();
 
     for line in corpus {
         let word_freq: Vec<&str> = line.split('\t').collect();
         if word_freq.len() >= 2 {
             if let Ok(freq) = word_freq[1].parse::<usize>() {
-                word_freqs.push((word_freq[0].to_string(), freq));
+                word_freqs.insert(word_freq[0].to_string(), freq);
             }
         }
     }
@@ -217,29 +217,46 @@ pub struct NorvigSpellChecker {
 }
 
 impl NorvigSpellChecker {
-    pub fn new(
-        custom_dict: Option<HashMap<String, usize>>,
-        min_freq: usize,
-        min_len: usize,
-        max_len: usize,
-        dict_filter: Option<fn(&str) -> bool>,
-    ) -> Self {
-        let custom_dict = custom_dict.unwrap_or_else(|| {
-            // Default: using Thai National Corpus (TNC), this should be loaded from a dataset
-            let mut default_dict = HashMap::new();
+    pub fn new() -> Self {
+        let word_freqs = convert_custom_dict(
+            CustomDict::HashMap(HashMap::new()),
+            2,
+            2,
+            40,
+            Some(is_thai_and_not_num),
+        );
+        let total_words = word_freqs.values().sum();
+        NorvigSpellChecker {
+            word_freqs,
+            total_words,
+        }
+    }
 
-            word_freqs().into_iter().for_each(|(word, freq)| {
-                default_dict.insert(word, freq);
-            });
-            default_dict
-        });
-
+    pub fn new_with_custom_dict(custom_dict: HashMap<String, usize>) -> Self {
         let word_freqs = convert_custom_dict(
             CustomDict::HashMap(custom_dict),
-            min_freq,
-            min_len,
-            max_len,
-            dict_filter,
+            2,
+            2,
+            40,
+            Some(is_thai_and_not_num),
+        );
+        let total_words = word_freqs.values().sum();
+        NorvigSpellChecker {
+            word_freqs,
+            total_words,
+        }
+    }
+
+    pub fn new_with_dict_filter(
+        custom_dict: HashMap<String, usize>,
+        dict_filter: fn(&str) -> bool,
+    ) -> Self {
+        let word_freqs = convert_custom_dict(
+            CustomDict::HashMap(custom_dict),
+            2,
+            2,
+            40,
+            Some(dict_filter),
         );
         let total_words = word_freqs.values().sum();
         NorvigSpellChecker {
@@ -306,6 +323,6 @@ impl NorvigSpellChecker {
 
 impl Default for NorvigSpellChecker {
     fn default() -> Self {
-        NorvigSpellChecker::new(None, 2, 2, 40, Some(is_thai_and_not_num))
+        Self::new()
     }
 }
