@@ -9,4 +9,5 @@ fn main() {
     let candidates = spell_checker.spell(word1);
 
     println!("Candidates for '{}': {:?}", word1, candidates);
+    assert_eq!(candidates, vec!["เหตุการณ์"]);
 }

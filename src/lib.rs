@@ -1,5 +1,6 @@
 use const_format::formatcp;
 use core::str;
+use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{self, BufRead};
@@ -143,8 +144,8 @@ fn _edits1(word: &str) -> HashSet<String> {
 
 fn _edits2(word: &str) -> HashSet<String> {
     _edits1(word)
-        .into_iter()
-        .flat_map(|e1| _edits1(&e1))
+        .par_iter()
+        .flat_map(|e1| _edits1(e1).into_par_iter())
         .collect()
 }
 
