@@ -3,7 +3,6 @@ use core::str;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{self, BufRead};
-use std::time::Instant;
 
 const THAI_CONSONANTS: &str = "กขฃคฅฆงจฉชซฌญฎฏฐฑฒณดตถทธนบปผฝพฟภมยรลวศษสหฬอฮ"; // 44 chars
 const THAI_VOWELS: &str = "\u{0e24}\u{0e26}\u{0e30}\u{0e31}\u{0e32}\u{0e33}\u{0e34}\u{0e35}\u{0e36}\u{0e37}\u{0e38}\u{0e39}\u{0e40}\u{0e41}\u{0e42}\u{0e43}\u{0e44}\u{0e45}\u{0e4d}\u{0e47}";
@@ -265,26 +264,15 @@ impl NorvigSpellChecker {
     }
 
     pub fn spell(&self, word: &str) -> Vec<String> {
-        let start = Instant::now();
         let mut candidates = self.known(&HashSet::from([word.to_string()]));
-        let duration = start.elapsed();
 
-        println!("Time elapsed in known() is: {:?}", duration);
-
-        let start = Instant::now();
         if candidates.is_empty() {
             candidates = self.known(&_edits1(word));
         }
-        let duration = start.elapsed();
-        println!("Time elapsed in _edits1() is: {:?}", duration);
 
-        let start = Instant::now();
         if candidates.is_empty() {
             candidates = self.known(&_edits2(word));
         }
-        let duration = start.elapsed();
-        println!("Time elapsed in _edits2() is: {:?}", duration);
-
         if candidates.is_empty() {
             candidates = HashSet::from([word.to_string()]);
         }
